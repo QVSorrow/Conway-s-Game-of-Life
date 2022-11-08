@@ -1,21 +1,44 @@
-use std::ops::{Not, Rem};
-use crate::game::board::{Board, Cell};
+use std::collections::HashMap;
+use std::ops::{IndexMut, Not, Rem};
+use crate::game::board::{Board, Cell, CellLifecycle};
 
 
-pub fn next_state(board: &mut Board) -> bool {
+pub fn next_state(board: &mut Board, life_log: &mut HashMap<(usize, usize), CellLifecycle>) -> bool {
+    let mut log = |index: (usize, usize), lifecycle: CellLifecycle| {
+        life_log.insert(index, lifecycle);
+    };
+
     let snapshot = board.clone();
     for entry in snapshot.iter() {
         let cell = entry.cell();
         let live_neighbours = count_live_neighbours(&snapshot, entry.index());
         let new_cell = match cell {
-            Cell::Dead if live_neighbours == 3 => Cell::Live,
-            Cell::Live if live_neighbours < 2 => Cell::Dead,
-            Cell::Live if live_neighbours > 3 => Cell::Dead,
+            Cell::Dead if live_neighbours == 3 => {
+                log(entry.index(), CellLifecycle::Born);
+                Cell::Live
+            }
+            Cell::Live if live_neighbours < 2 => {
+                log(entry.index(), CellLifecycle::Died);
+                Cell::Dead
+            }
+            Cell::Live if live_neighbours > 3 => {
+                log(entry.index(), CellLifecycle::Died);
+                Cell::Dead
+            }
             _ => cell,
         };
         board[entry.index()] = new_cell;
     }
     *board != snapshot
+}
+
+pub fn resize(board: &mut Board, x: usize, y: usize) {
+    let mut new_board = Board::new(x, y);
+    board.iter()
+        .filter(|entry| entry.cell() == Cell::Live && entry.x() < x && entry.y() < y)
+        .map(|entry| entry.index())
+        .for_each(|index| new_board.index_mut(index).flip());
+    *board = new_board;
 }
 
 
@@ -59,6 +82,6 @@ mod tests {
 
         let x = -3i32;
         let x = x.rem_euclid(10);
-        assert_eq!(x, 10-3);
+        assert_eq!(x, 10 - 3);
     }
 }

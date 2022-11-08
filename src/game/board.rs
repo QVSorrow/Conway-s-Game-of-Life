@@ -7,6 +7,26 @@ pub enum Cell {
     Live,
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum CellLifecycle {
+    Died,
+    Born,
+}
+
+impl Cell {
+    pub fn flip(&mut self) {
+        let is_alive = match self {
+            Cell::Dead => false,
+            Cell::Live => true,
+        };
+        if is_alive {
+            *self = Cell::Dead
+        } else {
+            *self = Cell::Live
+        }
+    }
+}
+
 impl Display for Cell {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -24,6 +44,12 @@ pub struct Board {
 }
 
 impl Board {
+    pub fn check_index(&self, (x, y): (usize, usize)) -> bool {
+        x < self.width() && y < self.height()
+    }
+}
+
+impl Board {
     pub fn new(width: usize, height: usize) -> Self {
         if width == 0 || height == 0 {
             panic!("board cannot be zero sized")
@@ -38,6 +64,12 @@ impl Board {
     pub fn width(&self) -> usize { self.width }
     pub fn height(&self) -> usize { self.height }
     pub fn iter(&self) -> BoardIter { self.into_iter() }
+
+    pub fn set(&mut self, (x, y): (usize, usize), cell: Cell) {
+        assert!(x < self.width, "x index {} is out of bound in width {}", x, self.width);
+        assert!(y < self.height, "y index {} is out of bound in height {}", y, self.height);
+        self.inner[y * self.width + x] = cell
+    }
 }
 
 impl Display for Board {
@@ -68,8 +100,8 @@ impl Index<(usize, usize)> for Board {
 
 impl IndexMut<(usize, usize)> for Board {
     fn index_mut(&mut self, (x, y): (usize, usize)) -> &mut Self::Output {
-        assert!(x < self.width);
-        assert!(y < self.height);
+        assert!(x < self.width, "x index {} is out of bound in width {}", x, self.width);
+        assert!(y < self.height, "y index {} is out of bound in height {}", y, self.height);
         &mut self.inner[y * self.width + x]
     }
 }
@@ -194,4 +226,12 @@ mod tests {
         assert_eq!("OOXX", str);
     }
 
+    #[test]
+    fn cell_flip() {
+        let mut cell = Cell::Live;
+        cell.flip();
+        assert_eq!(cell, Cell::Dead);
+        cell.flip();
+        assert_eq!(cell, Cell::Live);
+    }
 }
