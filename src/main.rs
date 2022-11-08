@@ -12,18 +12,15 @@
 // The initial pattern constitutes the seed of the system. The first generation is created by applying the above rules simultaneously to every cell in the seed, live or dead; births and deaths occur simultaneously, and the discrete moment at which this happens is sometimes called a tick.[nb 1] Each generation is a pure function of the preceding one. The rules continue to be applied repeatedly to create further generations.
 
 use std::cmp::min;
-use std::collections::HashMap;
-use std::io::{stdout, Write};
-use std::ops::{Index, IndexMut};
-use std::sync::mpsc::channel;
-use std::thread::{spawn};
+use std::io::stdout;
+use std::ops::IndexMut;
 use std::time::{Duration, Instant};
+
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
-use crossterm::{ExecutableCommand, QueueableCommand, style};
-use crossterm::cursor::MoveTo;
+use crossterm::ExecutableCommand;
 use crossterm::terminal::{Clear, ClearType};
 
-use crate::game::board::{Board, Cell, CellLifecycle};
+use crate::game::board::{Board, Cell};
 use crate::game::logic::{next_state, resize};
 use crate::game::tui::{BoardEvent, DEFAULT_THEME, draw_board, get_size, handle_events};
 
@@ -41,18 +38,6 @@ fn main() {
         board.index_mut((i, i)).flip();
     }
 
-
-    let (events_sender, events_receiver) = channel::<BoardEvent>();
-    let (exit_sender, exit_receiver) = channel::<()>();
-
-    let events_thread = spawn(|| {
-        handle_events(
-            Duration::from_millis(100),
-            events_sender,
-            exit_receiver,
-        ).unwrap();
-    });
-
     let mut stdout = stdout();
     stdout.execute(EnableMouseCapture).unwrap();
 
@@ -69,30 +54,21 @@ fn main() {
     }
 
     let mut pause_state = PauseState::Disabled;
-    let mut lifecycle = HashMap::with_capacity(board.width() * board.height() / 3);
     let mut last_updated = Instant::now();
 
     'outer: loop {
         let start = Instant::now();
         let should_compute_state = Instant::now() > last_updated + frame_duration;
-        draw_board(&DEFAULT_THEME, &mut stdout, &board, &lifecycle).unwrap();
+        draw_board(&DEFAULT_THEME, &mut stdout, &board).unwrap();
 
-        if pause_state == PauseState::Disabled && should_compute_state {
-            lifecycle.clear();
-        }
         while let Some(timeout) = remaining_time(start, Duration::from_millis(16)) {
-            if let Ok(event) = events_receiver.recv_timeout(timeout) {
+            if let Some(event) = handle_events(timeout) {
                 match event {
                     BoardEvent::MouseClick { x, y } => {
                         let x = x as usize;
                         let y = y as usize;
                         if board.check_index((x, y)) {
-                            let cell = board.index_mut((x, y));
-                            match cell {
-                                Cell::Dead => lifecycle.insert((x, y), CellLifecycle::Born),
-                                Cell::Live => lifecycle.insert((x, y), CellLifecycle::Died),
-                            };
-                            cell.flip();
+                            board.index_mut((x, y)).flip();
                         }
                     }
                     BoardEvent::Exit => {
@@ -129,15 +105,13 @@ fn main() {
             _ => true,
         };
         if should_compute_state && !is_paused {
-            next_state(&mut board, &mut lifecycle);
+            next_state(&mut board);
             last_updated = Instant::now();
         }
     }
-    exit_sender.send(()).unwrap();
     stdout.execute(DisableMouseCapture).unwrap();
     stdout.execute(Clear(ClearType::All)).unwrap();
     crossterm::terminal::disable_raw_mode().unwrap();
-    events_thread.join().unwrap();
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]

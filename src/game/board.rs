@@ -3,26 +3,27 @@ use std::ops::{AddAssign, Div, Index, IndexMut, Rem, Sub};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Cell {
-    Dead,
-    Live,
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum CellLifecycle {
     Died,
+    Dead,
     Born,
+    Alive,
 }
 
 impl Cell {
-    pub fn flip(&mut self) {
-        let is_alive = match self {
+    pub fn is_alive(&self) -> bool {
+        match self {
+            Cell::Died => false,
             Cell::Dead => false,
-            Cell::Live => true,
-        };
-        if is_alive {
-            *self = Cell::Dead
+            Cell::Born => true,
+            Cell::Alive => true,
+        }
+    }
+
+    pub fn flip(&mut self) {
+        if self.is_alive() {
+            *self = Cell::Died
         } else {
-            *self = Cell::Live
+            *self = Cell::Born
         }
     }
 }
@@ -31,7 +32,20 @@ impl Display for Cell {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Cell::Dead => write!(f, "X"),
-            Cell::Live => write!(f, "O"),
+            Cell::Alive => write!(f, "O"),
+            Cell::Died => write!(f, "x"),
+            Cell::Born => write!(f, "o"),
+        }
+    }
+}
+
+impl From<Cell> for char {
+    fn from(cell: Cell) -> Self {
+        match cell {
+            Cell::Died => 'x',
+            Cell::Dead => 'X',
+            Cell::Born => 'o',
+            Cell::Alive => 'O',
         }
     }
 }
@@ -77,10 +91,7 @@ impl Display for Board {
         let mut str = String::new();
         for row in 0..self.height() {
             for col in 0..self.width() {
-                match self[(col, row)] {
-                    Cell::Dead => str.push('_'),
-                    Cell::Live => str.push('X'),
-                }
+                str.push(self[(col, row)].into());
             }
             str.push('\n');
         }
@@ -202,8 +213,8 @@ mod tests {
     #[test]
     fn board_index() {
         let mut board = Board::new(2, 2);
-        board[(1, 1)] = Cell::Live;
-        assert_eq!(Cell::Live, board[(1, 1)]);
+        board[(1, 1)] = Cell::Alive;
+        assert_eq!(Cell::Alive, board[(1, 1)]);
         assert_eq!(Cell::Dead, board[(1, 0)]);
     }
 
@@ -211,14 +222,14 @@ mod tests {
     #[should_panic]
     fn board_index_not_valid() {
         let mut board = Board::new(2, 2);
-        board[(1, 3)] = Cell::Live;
+        board[(1, 3)] = Cell::Alive;
     }
 
     #[test]
     fn iterator() {
         let mut board = Board::new(2, 2);
-        board[(0, 0)] = Cell::Live;
-        board[(0, 1)] = Cell::Live;
+        board[(0, 0)] = Cell::Alive;
+        board[(0, 1)] = Cell::Alive;
         let str = board.iter().fold(String::new(), |mut acc, entry| {
             acc.push_str(entry.cell().to_string().as_str());
             acc
@@ -228,10 +239,10 @@ mod tests {
 
     #[test]
     fn cell_flip() {
-        let mut cell = Cell::Live;
+        let mut cell = Cell::Alive;
         cell.flip();
-        assert_eq!(cell, Cell::Dead);
+        assert_eq!(cell, Cell::Died);
         cell.flip();
-        assert_eq!(cell, Cell::Live);
+        assert_eq!(cell, Cell::Born);
     }
 }

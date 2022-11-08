@@ -1,30 +1,25 @@
-use std::collections::HashMap;
-use std::ops::{IndexMut, Not, Rem};
-use crate::game::board::{Board, Cell, CellLifecycle};
+use std::ops::{IndexMut};
+use crate::game::board::{Board, Cell};
 
 
-pub fn next_state(board: &mut Board, life_log: &mut HashMap<(usize, usize), CellLifecycle>) -> bool {
-    let mut log = |index: (usize, usize), lifecycle: CellLifecycle| {
-        life_log.insert(index, lifecycle);
-    };
-
-    let snapshot = board.clone();
+pub fn next_state(board: &mut Board) -> bool {
+    let snapshot = board.clone(); // TODO: optimize to not clone whole table, but remember some part
     for entry in snapshot.iter() {
         let cell = entry.cell();
         let live_neighbours = count_live_neighbours(&snapshot, entry.index());
         let new_cell = match cell {
-            Cell::Dead if live_neighbours == 3 => {
-                log(entry.index(), CellLifecycle::Born);
-                Cell::Live
+            Cell::Dead | Cell::Died if live_neighbours == 3 => {
+                Cell::Born
             }
-            Cell::Live if live_neighbours < 2 => {
-                log(entry.index(), CellLifecycle::Died);
-                Cell::Dead
+            Cell::Alive | Cell::Born if live_neighbours < 2 => {
+                Cell::Died
             }
-            Cell::Live if live_neighbours > 3 => {
-                log(entry.index(), CellLifecycle::Died);
-                Cell::Dead
+            Cell::Alive | Cell::Born if live_neighbours > 3 => {
+                Cell::Died
             }
+            // move state further
+            Cell::Born => Cell::Alive,
+            Cell::Died => Cell::Dead,
             _ => cell,
         };
         board[entry.index()] = new_cell;
@@ -35,7 +30,7 @@ pub fn next_state(board: &mut Board, life_log: &mut HashMap<(usize, usize), Cell
 pub fn resize(board: &mut Board, x: usize, y: usize) {
     let mut new_board = Board::new(x, y);
     board.iter()
-        .filter(|entry| entry.cell() == Cell::Live && entry.x() < x && entry.y() < y)
+        .filter(|entry| entry.cell() == Cell::Alive && entry.x() < x && entry.y() < y)
         .map(|entry| entry.index())
         .for_each(|index| new_board.index_mut(index).flip());
     *board = new_board;
@@ -48,9 +43,11 @@ fn count_live_neighbours(board: &Board, (ux, uy): (usize, usize)) -> u8 {
     let y = uy as isize;
     for x in (x - 1)..=(x + 1) {
         for y in (y - 1)..=(y + 1) {
-            let _ = valid_neighbour_index(board, (ux, uy), x, y)
-                .filter(|&index| board[index] == Cell::Live)
-                .map(|_| live_neighbours += 1);
+            if let Some(index) = valid_neighbour_index(board, (ux, uy), x, y) {
+                if board[index].is_alive() {
+                    live_neighbours += 1;
+                }
+            }
         }
     }
     live_neighbours
