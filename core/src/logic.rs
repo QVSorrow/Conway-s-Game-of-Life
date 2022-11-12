@@ -1,21 +1,39 @@
-use std::ops::{Not, Rem};
-use crate::game::board::{Board, Cell};
+use std::ops::{IndexMut};
+use crate::board::{Board, Cell};
 
 
 pub fn next_state(board: &mut Board) -> bool {
-    let snapshot = board.clone();
+    let snapshot = board.clone(); // TODO: optimize to not clone whole table, but remember some part
     for entry in snapshot.iter() {
         let cell = entry.cell();
         let live_neighbours = count_live_neighbours(&snapshot, entry.index());
         let new_cell = match cell {
-            Cell::Dead if live_neighbours == 3 => Cell::Live,
-            Cell::Live if live_neighbours < 2 => Cell::Dead,
-            Cell::Live if live_neighbours > 3 => Cell::Dead,
+            Cell::Dead | Cell::Died if live_neighbours == 3 => {
+                Cell::Born
+            }
+            Cell::Alive | Cell::Born if live_neighbours < 2 => {
+                Cell::Died
+            }
+            Cell::Alive | Cell::Born if live_neighbours > 3 => {
+                Cell::Died
+            }
+            // move state further
+            Cell::Born => Cell::Alive,
+            Cell::Died => Cell::Dead,
             _ => cell,
         };
         board[entry.index()] = new_cell;
     }
     *board != snapshot
+}
+
+pub fn resize(board: &mut Board, x: usize, y: usize) {
+    let mut new_board = Board::new(x, y);
+    board.iter()
+        .filter(|entry| entry.cell() == Cell::Alive && entry.x() < x && entry.y() < y)
+        .map(|entry| entry.index())
+        .for_each(|index| new_board.index_mut(index).flip());
+    *board = new_board;
 }
 
 
@@ -25,9 +43,11 @@ fn count_live_neighbours(board: &Board, (ux, uy): (usize, usize)) -> u8 {
     let y = uy as isize;
     for x in (x - 1)..=(x + 1) {
         for y in (y - 1)..=(y + 1) {
-            let _ = valid_neighbour_index(board, (ux, uy), x, y)
-                .filter(|&index| board[index] == Cell::Live)
-                .map(|_| live_neighbours += 1);
+            if let Some(index) = valid_neighbour_index(board, (ux, uy), x, y) {
+                if board[index].is_alive() {
+                    live_neighbours += 1;
+                }
+            }
         }
     }
     live_neighbours
@@ -59,6 +79,6 @@ mod tests {
 
         let x = -3i32;
         let x = x.rem_euclid(10);
-        assert_eq!(x, 10-3);
+        assert_eq!(x, 10 - 3);
     }
 }

@@ -1,17 +1,51 @@
 use std::fmt::{Display, Formatter};
-use std::ops::{AddAssign, Div, Index, IndexMut, Rem, Sub};
+use std::ops::{Index, IndexMut};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Cell {
+    Died,
     Dead,
-    Live,
+    Born,
+    Alive,
+}
+
+impl Cell {
+    pub fn is_alive(&self) -> bool {
+        match self {
+            Cell::Died => false,
+            Cell::Dead => false,
+            Cell::Born => true,
+            Cell::Alive => true,
+        }
+    }
+
+    pub fn flip(&mut self) {
+        if self.is_alive() {
+            *self = Cell::Died
+        } else {
+            *self = Cell::Born
+        }
+    }
 }
 
 impl Display for Cell {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Cell::Dead => write!(f, "X"),
-            Cell::Live => write!(f, "O"),
+            Cell::Alive => write!(f, "O"),
+            Cell::Died => write!(f, "x"),
+            Cell::Born => write!(f, "o"),
+        }
+    }
+}
+
+impl From<Cell> for char {
+    fn from(cell: Cell) -> Self {
+        match cell {
+            Cell::Died => 'x',
+            Cell::Dead => 'X',
+            Cell::Born => 'o',
+            Cell::Alive => 'O',
         }
     }
 }
@@ -21,6 +55,12 @@ pub struct Board {
     inner: Vec<Cell>,
     width: usize,
     height: usize,
+}
+
+impl Board {
+    pub fn check_index(&self, (x, y): (usize, usize)) -> bool {
+        x < self.width() && y < self.height()
+    }
 }
 
 impl Board {
@@ -38,6 +78,12 @@ impl Board {
     pub fn width(&self) -> usize { self.width }
     pub fn height(&self) -> usize { self.height }
     pub fn iter(&self) -> BoardIter { self.into_iter() }
+
+    pub fn set(&mut self, (x, y): (usize, usize), cell: Cell) {
+        assert!(x < self.width, "x index {} is out of bound in width {}", x, self.width);
+        assert!(y < self.height, "y index {} is out of bound in height {}", y, self.height);
+        self.inner[y * self.width + x] = cell
+    }
 }
 
 impl Display for Board {
@@ -45,10 +91,7 @@ impl Display for Board {
         let mut str = String::new();
         for row in 0..self.height() {
             for col in 0..self.width() {
-                match self[(col, row)] {
-                    Cell::Dead => str.push('_'),
-                    Cell::Live => str.push('X'),
-                }
+                str.push(self[(col, row)].into());
             }
             str.push('\n');
         }
@@ -68,8 +111,8 @@ impl Index<(usize, usize)> for Board {
 
 impl IndexMut<(usize, usize)> for Board {
     fn index_mut(&mut self, (x, y): (usize, usize)) -> &mut Self::Output {
-        assert!(x < self.width);
-        assert!(y < self.height);
+        assert!(x < self.width, "x index {} is out of bound in width {}", x, self.width);
+        assert!(y < self.height, "y index {} is out of bound in height {}", y, self.height);
         &mut self.inner[y * self.width + x]
     }
 }
@@ -152,7 +195,7 @@ impl<'a> IntoIterator for &'a Board {
 
 #[cfg(test)]
 mod tests {
-    use crate::game::board::{Board, Cell};
+    use super::{Board, Cell};
 
     #[test]
     fn create_board() {
@@ -170,8 +213,8 @@ mod tests {
     #[test]
     fn board_index() {
         let mut board = Board::new(2, 2);
-        board[(1, 1)] = Cell::Live;
-        assert_eq!(Cell::Live, board[(1, 1)]);
+        board[(1, 1)] = Cell::Alive;
+        assert_eq!(Cell::Alive, board[(1, 1)]);
         assert_eq!(Cell::Dead, board[(1, 0)]);
     }
 
@@ -179,14 +222,14 @@ mod tests {
     #[should_panic]
     fn board_index_not_valid() {
         let mut board = Board::new(2, 2);
-        board[(1, 3)] = Cell::Live;
+        board[(1, 3)] = Cell::Alive;
     }
 
     #[test]
     fn iterator() {
         let mut board = Board::new(2, 2);
-        board[(0, 0)] = Cell::Live;
-        board[(0, 1)] = Cell::Live;
+        board[(0, 0)] = Cell::Alive;
+        board[(0, 1)] = Cell::Alive;
         let str = board.iter().fold(String::new(), |mut acc, entry| {
             acc.push_str(entry.cell().to_string().as_str());
             acc
@@ -194,4 +237,12 @@ mod tests {
         assert_eq!("OOXX", str);
     }
 
+    #[test]
+    fn cell_flip() {
+        let mut cell = Cell::Alive;
+        cell.flip();
+        assert_eq!(cell, Cell::Died);
+        cell.flip();
+        assert_eq!(cell, Cell::Born);
+    }
 }

@@ -11,35 +11,7 @@
 // All other live cells die in the next generation. Similarly, all other dead cells stay dead.
 // The initial pattern constitutes the seed of the system. The first generation is created by applying the above rules simultaneously to every cell in the seed, live or dead; births and deaths occur simultaneously, and the discrete moment at which this happens is sometimes called a tick.[nb 1] Each generation is a pure function of the preceding one. The rules continue to be applied repeatedly to create further generations.
 
-use std::ops::Not;
-use std::time::Duration;
-use crate::game::board::{Board, Cell};
-use crate::game::logic::next_state;
-
-mod game;
 
 
-fn main() {
-    let mut board = Board::new(10, 10);
-    board[(2, 2)] = Cell::Live;
-    board[(2, 5)] = Cell::Live;
-    board[(3, 5)] = Cell::Live;
-    board[(3, 5)] = Cell::Live;
-    board[(1, 5)] = Cell::Live;
-    board[(4, 5)] = Cell::Live;
-    board[(4, 3)] = Cell::Live;
-    board[(2, 3)] = Cell::Live;
-    board[(1, 3)] = Cell::Live;
-
-    loop {
-        print!("\x1B[2J");
-        println!("{}", board);
-        if next_state(&mut board).not() {
-            break
-        }
-        std::thread::sleep(Duration::from_millis(200));
-    }
-}
-
-
-
+pub mod board;
+pub mod logic;
