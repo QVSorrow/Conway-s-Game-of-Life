@@ -48,8 +48,13 @@ dependencies = [
 [[package]]
 name = "game_of_life"
 version = "0.2.0"
+
+[[package]]
+name = "game_of_life_tui"
+version = "0.2.0"
 dependencies = [
  "crossterm",
+ "game_of_life",
  "once_cell",
 ]
 

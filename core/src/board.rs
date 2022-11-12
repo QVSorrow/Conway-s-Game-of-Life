@@ -1,5 +1,5 @@
 use std::fmt::{Display, Formatter};
-use std::ops::{AddAssign, Div, Index, IndexMut, Rem, Sub};
+use std::ops::{Index, IndexMut};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Cell {
@@ -195,7 +195,7 @@ impl<'a> IntoIterator for &'a Board {
 
 #[cfg(test)]
 mod tests {
-    use crate::game::board::{Board, Cell};
+    use super::{Board, Cell};
 
     #[test]
     fn create_board() {

@@ -1,5 +1,5 @@
 use std::ops::{IndexMut};
-use crate::game::board::{Board, Cell};
+use crate::board::{Board, Cell};
 
 
 pub fn next_state(board: &mut Board) -> bool {
