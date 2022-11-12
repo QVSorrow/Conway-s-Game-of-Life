@@ -1,13 +1,20 @@
+use std::cmp::min;
 use std::io::{Stdout, Write};
-use std::time::Duration;
+use std::io::stdout;
+use std::ops::IndexMut;
+use std::time::{Duration, Instant};
 
 use crossterm::{cursor, QueueableCommand, Result, style};
+use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::event::{Event, KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind, poll, read};
+use crossterm::ExecutableCommand;
 use crossterm::style::{ContentStyle, StyledContent, Stylize};
+use crossterm::terminal::{Clear, ClearType};
 use crossterm::terminal;
 use once_cell::sync::Lazy;
 
-use crate::{Board, Cell};
+use game_of_life::board::{Board, Cell};
+use game_of_life::logic::{next_state, resize};
 
 #[derive(Debug)]
 pub struct Theme {
@@ -151,3 +158,96 @@ pub fn get_size() -> Result<(u16, u16)> {
     terminal::size()
 }
 
+pub fn main_loop() -> Result<()> {
+    terminal::enable_raw_mode()?;
+    let mut board = {
+        let (w, h) = get_size()?;
+        Board::new(w as usize, h as usize)
+    };
+
+    for i in 0..min(25usize, min(board.width(), board.height())) {
+        board.index_mut((i, i)).flip();
+    }
+
+    let mut stdout = stdout();
+    stdout.execute(EnableMouseCapture)?;
+
+    let mut frame_duration = Duration::from_millis(64);
+
+    fn remaining_time(start: Instant, frame_duration: Duration) -> Option<Duration> {
+        let now = Instant::now();
+        let passed = now - start;
+        if passed >= frame_duration {
+            None
+        } else {
+            Some(frame_duration - passed)
+        }
+    }
+
+    let mut pause_state = PauseState::Disabled;
+    let mut last_updated = Instant::now();
+
+    'outer: loop {
+        let start = Instant::now();
+        let should_compute_state = Instant::now() > last_updated + frame_duration;
+        draw_board(&DEFAULT_THEME, &mut stdout, &board)?;
+
+        while let Some(timeout) = remaining_time(start, Duration::from_millis(16)) {
+            if let Some(event) = handle_events(timeout) {
+                match event {
+                    BoardEvent::MouseClick { x, y } => {
+                        let x = x as usize;
+                        let y = y as usize;
+                        if board.check_index((x, y)) {
+                            board.index_mut((x, y)).flip();
+                        }
+                    }
+                    BoardEvent::Exit => {
+                        break 'outer;
+                    }
+                    BoardEvent::Resized { x, y } => {
+                        resize(&mut board, x as usize, y as usize);
+                    }
+                    BoardEvent::Pause => {
+                        if pause_state != PauseState::Disabled {
+                            pause_state = PauseState::Disabled;
+                        } else {
+                            pause_state = PauseState::JustEnabled;
+                        }
+                    }
+                    BoardEvent::Speed(increase) => {
+                        if increase {
+                            frame_duration /= 2;
+                        } else {
+                            frame_duration *= 2;
+                        }
+                    }
+                }
+            }
+        }
+
+
+        let is_paused = match pause_state {
+            PauseState::Disabled => false,
+            PauseState::JustEnabled => {
+                pause_state = PauseState::Activated;
+                false
+            }
+            _ => true,
+        };
+        if should_compute_state && !is_paused {
+            next_state(&mut board);
+            last_updated = Instant::now();
+        }
+    }
+    stdout.execute(DisableMouseCapture)?;
+    stdout.execute(Clear(ClearType::All))?;
+    terminal::disable_raw_mode()
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+enum PauseState {
+    Disabled,
+    JustEnabled,
+    Activated,
+}
